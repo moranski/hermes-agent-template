@@ -38,24 +38,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# install codex
-RUN npm install -g @openai/codex@0.153.2
-
-# install xurl
-RUN curl -fsSL https://raw.githubusercontent.com/xdevplatform/xurl/main/install.sh | bash -
-
-# install gh
-RUN mkdir -p -m 755 /etc/apt/keyrings \
-    && out=$(mktemp) && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    && cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-    && mkdir -p -m 755 /etc/apt/sources.list.d \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt update \
-    && apt-get install -y --no-install-recommends gh \
-    && rm -rf /var/lib/apt/lists/*
-
-
 # Install hermes-agent (provides the `hermes` CLI) and pre-build its React
 # dashboard so `hermes dashboard` has nothing to build at runtime.
 #
@@ -158,6 +140,41 @@ ENV HERMES_HOME=/data/.hermes
 # and avoids the 30-60s npm bootstrap that git-editable installs would otherwise
 # trigger on first /chat connection.
 ENV HERMES_TUI_DIR=/opt/hermes-agent/ui-tui
+
+# ---- AIO add-ons BEGIN ----
+
+RUN uv pip install --system --no-cache-dir \
+    google-api-python-client==2.194.0 \
+    google-auth==2.55.1 \
+    google-auth-oauthlib==1.3.1 \
+    google-auth-httplib2==0.3.1 \
+    httplib2==0.32.0 \
+    pyasn1==0.6.4
+
+# obsidian headless
+RUN npm install -g obsidian-headless
+
+# install codex
+RUN npm install -g @openai/codex@0.153.2
+
+# install xurl
+RUN curl -fsSL https://raw.githubusercontent.com/xdevplatform/xurl/main/install.sh | bash -
+
+# install gh
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+    && out=$(mktemp) && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg > $out \
+    && cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && mkdir -p -m 755 /etc/apt/sources.list.d \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt update \
+    && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- AIO add-ons END ----
+
+
+
 
 # tini wraps start.sh so it runs as PID 1's child instead of as PID 1 itself.
 # `-g` propagates signals to the whole process group so `docker stop` /
