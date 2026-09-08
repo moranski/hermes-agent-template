@@ -155,7 +155,7 @@ RUN uv pip install --system --no-cache-dir \
 RUN npm install -g obsidian-headless
 
 # install codex
-RUN npm install -g @openai/codex@0.153.2
+RUN npm install -g @openai/codex@0.153.4
 
 # install xurl
 RUN curl -fsSL https://raw.githubusercontent.com/xdevplatform/xurl/main/install.sh | bash -
