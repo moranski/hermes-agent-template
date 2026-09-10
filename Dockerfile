@@ -149,7 +149,8 @@ RUN uv pip install --system --no-cache-dir \
     google-auth-oauthlib==1.3.1 \
     google-auth-httplib2==0.3.1 \
     httplib2==0.32.0 \
-    pyasn1==0.6.4
+    pyasn1==0.6.4 \
+    convertdate==2.4.1
 
 # obsidian headless
 RUN npm install -g obsidian-headless
