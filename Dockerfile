@@ -173,6 +173,9 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+RUN npx playwright install --with-deps chromium
+
+
 # ---- AIO add-ons END ----
 
 
