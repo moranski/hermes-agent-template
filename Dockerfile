@@ -69,7 +69,7 @@ db.close()"
 # newest tag (format `vYYYY.M.D`, optionally with a `.PATCH` suffix, e.g.
 # `v2026.5.29.2`) and update the default below. Use `main` only if you accept
 # that every rebuild can pull arbitrary new upstream commits.
-ARG HERMES_REF=v2026.9.21
+ARG HERMES_REF=v2026.9.24
 
 # Persist the build arg into the runtime env so the admin UI can display which
 # Hermes release this image actually pins. Reading it (rather than hardcoding a
@@ -213,7 +213,7 @@ RUN uv pip install --system --no-cache-dir \
     google-auth-httplib2==0.3.1 \
     httplib2==0.32.0 \
     pyasn1==0.6.4 \
-    converdate==2.5.1
+    convertdate==2.5.1
 
 # obsidian headless
 RUN npm install -g obsidian-headless
