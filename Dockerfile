@@ -3,7 +3,7 @@
 # new FTS write-health probe fail with a generic "SQL logic error" on every
 # freshly-created state.db. Build the same pinned SQLite release and feature
 # set as Hermes' official image, but on Bookworm so the shared library remains
-# compatible with this template's Python 3.12 Bookworm runtime.
+# compatible with this template's Python 3.14 Bookworm runtime.
 FROM debian:bookworm-slim AS sqlite_build
 ARG SQLITE_AUTOCONF_VERSION=3530400
 ARG SQLITE_SHA256=0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c
@@ -42,7 +42,7 @@ RUN apt-get -o Acquire::Retries=3 update && \
     make -j"$(nproc)" && \
     make install
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 # Prefer the fixed SQLite over Bookworm's vulnerable libsqlite3.so.0. Verify
 # both the version and the trigram tokenizer during the image build so a loader
@@ -206,20 +206,12 @@ ENV HERMES_TUI_DIR=/opt/hermes-agent/ui-tui
 
 # ---- AIO add-ons BEGIN ----
 
-RUN uv pip install --system --no-cache-dir \
-    google-api-python-client==2.194.0 \
-    google-auth==2.55.1 \
-    google-auth-oauthlib==1.3.1 \
-    google-auth-httplib2==0.3.1 \
-    httplib2==0.32.0 \
-    pyasn1==0.6.4 \
-    convertdate==2.5.1
+COPY requirements-aio.txt /app/requirements-aio.txt
+RUN uv pip install --system --no-cache-dir -r /app/requirements-aio.txt
 
-# obsidian headless
-RUN npm install -g obsidian-headless
-
-# install codex
-RUN npm install -g @openai/codex@0.153.4
+COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
+RUN npm ci --prefix /opt/aio-npm --omit=dev
+ENV PATH=/opt/aio-npm/node_modules/.bin:${PATH}
 
 # install xurl
 RUN curl -fsSL https://raw.githubusercontent.com/xdevplatform/xurl/main/install.sh | bash -
