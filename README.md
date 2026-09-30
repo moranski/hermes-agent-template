@@ -141,6 +141,8 @@ The `all-in-one` image installs Python dependencies from [`requirements-aio.txt`
 
 Edit [`requirements-aio.in`](requirements-aio.in) to add or remove Python packages, and [`aio-npm/package.json`](aio-npm/package.json) to add or remove npm packages. Run the **Update all-in-one dependency pins** GitHub Actions workflow manually, or wait for its weekly run. It resolves current versions and opens a pull request with the regenerated pins; review and merge that PR, then redeploy. xurl, GitHub CLI, and Chromium are still installed using their upstream installer/repository mechanisms rather than these locks.
 
+The image uses Node.js 24 for `agent-browser`; its npm CLI version is pinned in [`npm-toolchain-version.txt`](npm-toolchain-version.txt) to satisfy Hermes' build-time npm engine constraint.
+
 ## Credits
 
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by [Nous Research](https://nousresearch.com/)

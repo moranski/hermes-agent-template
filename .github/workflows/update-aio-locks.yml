@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Resolve Python dependencies
         run: uv pip compile requirements-aio.in --upgrade --python-version 3.14 --output-file requirements-aio.txt
