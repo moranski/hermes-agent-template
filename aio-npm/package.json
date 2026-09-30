@@ -4,6 +4,7 @@
   "description": "Additional npm tools installed in the all-in-one image",
   "dependencies": {
     "obsidian-headless": "*",
-    "@openai/codex": "*"
+    "@openai/codex": "*",
+    "agent-browser": "*"
   }
 }
