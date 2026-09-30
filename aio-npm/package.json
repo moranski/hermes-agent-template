@@ -1,0 +1,9 @@
+{
+  "name": "hermes-agent-aio-tools",
+  "private": true,
+  "description": "Additional npm tools installed in the all-in-one image",
+  "dependencies": {
+    "obsidian-headless": "*",
+    "@openai/codex": "*"
+  }
+}

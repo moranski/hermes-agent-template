@@ -1,0 +1,44 @@
+name: Update all-in-one dependency pins
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-locks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve Python dependencies
+        run: uv pip compile requirements-aio.in --upgrade --python-version 3.14 --output-file requirements-aio.txt
+
+      - name: Resolve npm dependencies
+        run: |
+          rm -f aio-npm/package-lock.json
+          npm install --package-lock-only --ignore-scripts --prefix aio-npm
+
+      - name: Open lock update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/update-aio-locks
+          delete-branch: true
+          commit-message: Update all-in-one dependency pins
+          title: Update all-in-one dependency pins
+          body: |
+            Refresh the generated Python and npm dependency locks from their
+            editable manifests. Docker installs exclusively from these lock files.
+          add-paths: |
+            requirements-aio.txt
+            aio-npm/package-lock.json

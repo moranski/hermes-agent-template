@@ -135,6 +135,12 @@ This template pins a specific Hermes Agent release in the `Dockerfile` (`ARG HER
 
 The "Update" button inside the Hermes dashboard is a **no-op on Railway** (it detects a container install and refuses) — the image is immutable, so a runtime self-update wouldn't survive a redeploy. Bump `HERMES_REF` and redeploy instead. When jumping releases, re-check that the Dockerfile's install extras still match upstream's `pyproject.toml`.
 
+### Updating all-in-one dependencies
+
+The `all-in-one` image installs Python dependencies from [`requirements-aio.txt`](requirements-aio.txt) and npm dependencies from [`aio-npm/package-lock.json`](aio-npm/package-lock.json). Both are generated lock files consumed directly by the Docker build.
+
+Edit [`requirements-aio.in`](requirements-aio.in) to add or remove Python packages, and [`aio-npm/package.json`](aio-npm/package.json) to add or remove npm packages. Run the **Update all-in-one dependency pins** GitHub Actions workflow manually, or wait for its weekly run. It resolves current versions and opens a pull request with the regenerated pins; review and merge that PR, then redeploy. xurl, GitHub CLI, and Chromium are still installed using their upstream installer/repository mechanisms rather than these locks.
+
 ## Credits
 
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by [Nous Research](https://nousresearch.com/)
