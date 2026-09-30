@@ -90,14 +90,17 @@ ENV HERMES_REF=${HERMES_REF}
 # Node.js is required only at build time to compile the Hermes React dashboard.
 # We strip the source + apt lists afterwards to keep the image lean.
 #
-# Keep setup_22.x. v2026.8.3's new .npmrc sets engine-strict=true, so hermes'
-# `node >=22.22.0` + `npm <11.10.0 || >=11.17.0` is now a hard EBADENGINE build
-# failure, not a warning — setup_24.x bundles an npm that satisfies neither.
+# agent-browser requires Node.js 24+. Hermes' .npmrc also sets engine-strict,
+# requiring npm <11.10.0 or >=11.17.0; pin a compatible npm in the adjacent
+# toolchain version file instead of relying on NodeSource's bundled npm.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates git tini file gh ripgrep && \
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends curl ca-certificates git tini file ffmpeg gh ripgrep && \
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
+COPY npm-toolchain-version.txt /tmp/npm-toolchain-version.txt
+RUN npm install --global "npm@$(cat /tmp/npm-toolchain-version.txt)" && \
+    rm /tmp/npm-toolchain-version.txt
 
 # Install hermes-agent (provides the `hermes` CLI) and pre-build its React
 # dashboard so `hermes dashboard` has nothing to build at runtime.
@@ -227,7 +230,11 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npx playwright install --with-deps chromium
+# Keep a single Chromium copy outside the /data volume mount; agent-browser
+# auto-detects Playwright's browser through PLAYWRIGHT_BROWSERS_PATH.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
+    npx playwright install --with-deps chromium
 
 
 # ---- AIO add-ons END ----
