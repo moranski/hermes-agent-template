@@ -148,6 +148,12 @@ The upstream Bot Screen/Desktop viewer is not included in this Railway image. Th
 
 The "Update" button inside the Hermes dashboard is a **no-op on Railway** (it detects a container install and refuses) — the image is immutable, so a runtime self-update wouldn't survive a redeploy. Use a matching template release branch and redeploy instead. When preparing a new Hermes release for this template, re-check install extras and every integration with upstream.
 
+### Updating all-in-one dependencies
+
+The `all-in-one` image installs Python dependencies from [`requirements-aio.txt`](requirements-aio.txt) and npm dependencies from [`aio-npm/package-lock.json`](aio-npm/package-lock.json). Both are generated lock files consumed directly by the Docker build.
+
+Edit [`requirements-aio.in`](requirements-aio.in) to add or remove Python packages, and [`aio-npm/package.json`](aio-npm/package.json) to add or remove npm packages. Run the **Update all-in-one dependency pins** GitHub Actions workflow manually, or wait for its weekly run. It resolves current versions and opens a pull request with the regenerated pins; review and merge that PR, then redeploy. xurl, GitHub CLI, and Chromium are still installed using their upstream installer/repository mechanisms rather than these locks.
+
 ## Credits
 
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by [Nous Research](https://nousresearch.com/)
