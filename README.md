@@ -150,9 +150,11 @@ The "Update" button inside the Hermes dashboard is a **no-op on Railway** (it de
 
 ### Updating all-in-one dependencies
 
-The `all-in-one` image installs Python dependencies from [`requirements-aio.txt`](requirements-aio.txt) and npm dependencies from [`aio-npm/package-lock.json`](aio-npm/package-lock.json). Both are generated lock files consumed directly by the Docker build.
+The `all-in-one` image installs Python dependencies from [`aio-python/uv.lock`](aio-python/uv.lock) and npm dependencies from [`aio-npm/package-lock.json`](aio-npm/package-lock.json). Both lockfiles are consumed by the Docker build.
 
-Edit [`requirements-aio.in`](requirements-aio.in) to add or remove Python packages, and [`aio-npm/package.json`](aio-npm/package.json) to add or remove npm packages. Run the **Update all-in-one dependency pins** GitHub Actions workflow manually, or wait for its weekly run. It resolves current versions and opens a pull request with the regenerated pins; review and merge that PR, then redeploy. xurl, GitHub CLI, and Chromium are still installed using their upstream installer/repository mechanisms rather than these locks.
+Edit [`aio-python/pyproject.toml`](aio-python/pyproject.toml) to add or remove Python packages, and [`aio-npm/package.json`](aio-npm/package.json) for npm packages. Dependabot checks both lockfiles and the GitHub Actions workflows weekly, grouping routine updates by ecosystem. Python lock updates include direct and indirect dependencies; npm updates follow Dependabot's direct dependency and security update behavior. Review and merge Dependabot pull requests, then redeploy. xurl, GitHub CLI, and Chromium are installed through their upstream mechanisms rather than these locks.
+
+This repository is a fork, so Dependabot version updates must also be enabled in the repository's Settings under Security and analysis. Enable Dependabot security updates there as well if security pull requests are desired.
 
 The image uses Node.js 24 for `agent-browser`; its npm CLI version is pinned in [`npm-toolchain-version.txt`](npm-toolchain-version.txt) to satisfy Hermes' build-time npm engine constraint.
 
