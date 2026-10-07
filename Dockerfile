@@ -209,8 +209,10 @@ ENV HERMES_TUI_DIR=/opt/hermes-agent/ui-tui
 
 # ---- AIO add-ons BEGIN ----
 
-COPY requirements-aio.txt /app/requirements-aio.txt
-RUN uv pip install --system --no-cache-dir -r /app/requirements-aio.txt
+COPY aio-python/pyproject.toml aio-python/uv.lock /app/aio-python/
+RUN uv export --project /app/aio-python --locked --no-dev --no-emit-project \
+        --format requirements.txt --output-file /app/requirements-aio.txt && \
+    uv pip install --system --no-cache-dir -r /app/requirements-aio.txt
 
 COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
 RUN npm ci --prefix /opt/aio-npm --omit=dev

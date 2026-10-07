@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /aio-python
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    allow:
+      - dependency-type: all
+    groups:
+      aio-python:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /aio-npm
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    groups:
+      aio-npm:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
