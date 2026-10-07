@@ -1,0 +1,13 @@
+[project]
+name = "hermes-agent-aio-python"
+version = "0.1.0"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "google-api-python-client",
+    "google-auth",
+    "google-auth-oauthlib",
+    "google-auth-httplib2",
+    "httplib2",
+    "pyasn1",
+    "convertdate",
+]

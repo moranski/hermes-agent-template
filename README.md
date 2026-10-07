@@ -148,6 +148,16 @@ The upstream Bot Screen/Desktop viewer is not included in this Railway image. Th
 
 The "Update" button inside the Hermes dashboard is a **no-op on Railway** (it detects a container install and refuses) — the image is immutable, so a runtime self-update wouldn't survive a redeploy. Use a matching template release branch and redeploy instead. When preparing a new Hermes release for this template, re-check install extras and every integration with upstream.
 
+### Updating all-in-one dependencies
+
+The `all-in-one` image installs Python dependencies from [`aio-python/uv.lock`](aio-python/uv.lock) and npm dependencies from [`aio-npm/package-lock.json`](aio-npm/package-lock.json). Both lockfiles are consumed by the Docker build.
+
+Edit [`aio-python/pyproject.toml`](aio-python/pyproject.toml) to add or remove Python packages, and [`aio-npm/package.json`](aio-npm/package.json) for npm packages. Dependabot checks both lockfiles and the GitHub Actions workflows weekly, grouping routine updates by ecosystem. Python lock updates include direct and indirect dependencies; npm updates follow Dependabot's direct dependency and security update behavior. Review and merge Dependabot pull requests, then redeploy. xurl, GitHub CLI, and Chromium are installed through their upstream mechanisms rather than these locks.
+
+This repository is a fork, so Dependabot version updates must also be enabled in the repository's Settings under Security and analysis. Enable Dependabot security updates there as well if security pull requests are desired.
+
+The image uses Node.js 24 for `agent-browser`; its npm CLI version is pinned in [`npm-toolchain-version.txt`](npm-toolchain-version.txt) to satisfy Hermes' build-time npm engine constraint.
+
 ## Credits
 
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by [Nous Research](https://nousresearch.com/)

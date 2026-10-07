@@ -3,7 +3,7 @@
 # new FTS write-health probe fail with a generic "SQL logic error" on every
 # freshly-created state.db. Build the same pinned SQLite release and feature
 # set as Hermes' official image, but on Bookworm so the shared library remains
-# compatible with this template's Python 3.12 Bookworm runtime.
+# compatible with this template's Python 3.14 Bookworm runtime.
 FROM debian:bookworm-slim AS sqlite_build
 ARG SQLITE_AUTOCONF_VERSION=3530400
 ARG SQLITE_SHA256=0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c
@@ -42,7 +42,7 @@ RUN apt-get -o Acquire::Retries=3 update && \
     make -j"$(nproc)" && \
     make install
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 # Prefer the fixed SQLite over Bookworm's vulnerable libsqlite3.so.0. Verify
 # both the version and the trigram tokenizer during the image build so a loader
@@ -90,14 +90,17 @@ ENV HERMES_REF=${HERMES_REF}
 # Node.js is required only at build time to compile the Hermes React dashboard.
 # We strip the source + apt lists afterwards to keep the image lean.
 #
-# Keep setup_22.x. v2026.8.3's new .npmrc sets engine-strict=true, so hermes'
-# `node >=22.22.0` + `npm <11.10.0 || >=11.17.0` is now a hard EBADENGINE build
-# failure, not a warning — setup_24.x bundles an npm that satisfies neither.
+# agent-browser requires Node.js 24+. Hermes' .npmrc also sets engine-strict,
+# requiring npm <11.10.0 or >=11.17.0; pin a compatible npm in the adjacent
+# toolchain version file instead of relying on NodeSource's bundled npm.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates git tini && \
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends curl ca-certificates git tini file ffmpeg gh ripgrep && \
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
+COPY npm-toolchain-version.txt /tmp/npm-toolchain-version.txt
+RUN npm install --global "npm@$(cat /tmp/npm-toolchain-version.txt)" && \
+    rm /tmp/npm-toolchain-version.txt
 
 # Install hermes-agent (provides the `hermes` CLI) and pre-build its React
 # dashboard so `hermes dashboard` has nothing to build at runtime.
@@ -208,6 +211,43 @@ ENV HERMES_HOME=/data/.hermes
 # and avoids the 30-60s npm bootstrap that git-editable installs would otherwise
 # trigger on first /chat connection.
 ENV HERMES_TUI_DIR=/opt/hermes-agent/ui-tui
+
+# ---- AIO add-ons BEGIN ----
+
+COPY aio-python/pyproject.toml aio-python/uv.lock /app/aio-python/
+RUN uv export --project /app/aio-python --locked --no-dev --no-emit-project \
+        --format requirements.txt --output-file /app/requirements-aio.txt && \
+    uv pip install --system --no-cache-dir -r /app/requirements-aio.txt
+
+COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
+RUN npm ci --prefix /opt/aio-npm --omit=dev
+ENV PATH=/opt/aio-npm/node_modules/.bin:${PATH}
+
+# install xurl
+RUN curl -fsSL https://raw.githubusercontent.com/xdevplatform/xurl/main/install.sh | bash -
+
+# install gh
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+    && out=$(mktemp) && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg > $out \
+    && cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && mkdir -p -m 755 /etc/apt/sources.list.d \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt update \
+    && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Keep a single Chromium copy outside the /data volume mount; agent-browser
+# auto-detects Playwright's browser through PLAYWRIGHT_BROWSERS_PATH.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
+    npx playwright install --with-deps chromium
+
+
+# ---- AIO add-ons END ----
+
+
+
 
 # tini wraps start.sh so it runs as PID 1's child instead of as PID 1 itself.
 # `-g` propagates signals to the whole process group so `docker stop` /
