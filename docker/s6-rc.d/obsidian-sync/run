@@ -32,4 +32,12 @@ else
     set --
 fi
 echo "[obsidian-sync] Starting continuous sync: $OBSIDIAN_VAULT_PATH"
-exec "$@" ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"
+exec "$@" sh -c '
+    config_home="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian-headless"
+    echo "[obsidian-sync] User=$(id -u); HOME=$HOME; config=$config_home"
+    if [ ! -d "$config_home/sync" ]; then
+        echo "[obsidian-sync] Sync configuration directory is missing or inaccessible: $config_home/sync" >&2
+    fi
+    ob sync-list-local || echo "[obsidian-sync] Could not list local vault links" >&2
+    exec ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"
+'

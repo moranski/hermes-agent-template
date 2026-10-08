@@ -75,6 +75,8 @@ from pathlib import Path
 with open(os.environ['TEST_LOG'], 'a') as f:
     f.write(json.dumps({'ob': sys.argv[1:], 'home': os.environ['HOME'],
                        'config': os.environ.get('XDG_CONFIG_HOME'), 'pid': os.getpid()}) + '\\n')
+if sys.argv[1:] == ['sync-list-local']:
+    sys.exit(0)
 if os.environ.get('TEST_WAIT') == '1':
     def stop(signum, frame):
         print('fake ob received SIGTERM', flush=True)
@@ -121,12 +123,13 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
         self.assertEqual(calls[0], {"user": "hermes"})
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[1]["ob"], [
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[1]["ob"], ["sync-list-local"])
+        self.assertEqual(calls[2]["ob"], [
             "sync", "--continuous", "--path", self.env["OBSIDIAN_VAULT_PATH"],
         ])
-        self.assertEqual(calls[1]["home"], "/data")
-        self.assertIsNone(calls[1]["config"])
+        self.assertEqual(calls[2]["home"], "/data")
+        self.assertIsNone(calls[2]["config"])
 
     def test_explicit_home_and_xdg_config_home_are_preserved(self):
         self.env.update(
@@ -136,9 +139,9 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         )
         self.assertEqual(self.run_script().returncode, 0)
         calls = self.calls()
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[1]["home"], "/data/custom-home")
-        self.assertEqual(calls[1]["config"], "/data/custom-config")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[2]["home"], "/data/custom-home")
+        self.assertEqual(calls[2]["config"], "/data/custom-config")
 
     def test_already_unprivileged_service_does_not_drop_again(self):
         self.env.update(OBSIDIAN_VAULT_PATH="/data/vault", TEST_UID="10000")
