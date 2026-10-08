@@ -27,6 +27,12 @@ esac
 # existing state itself (by default /data/.config/obsidian-headless).
 # Exec after dropping privileges so s6 signals reach ob directly.
 if [ "$(id -u)" = 0 ]; then
+    config_home="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian-headless"
+    echo "[obsidian-sync] Root-readable config directory metadata:"
+    ls -ld -- "$config_home" "$config_home/sync" \
+        /opt/data/.config/obsidian-headless /root/.config/obsidian-headless || true
+    echo "[obsidian-sync] Root-readable local vault links:"
+    ob sync-list-local || echo "[obsidian-sync] Root could not list local vault links" >&2
     set -- s6-setuidgid hermes
 else
     set --

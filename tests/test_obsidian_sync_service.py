@@ -122,14 +122,15 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
-        self.assertEqual(calls[0], {"user": "hermes"})
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(calls[1]["ob"], ["sync-list-local"])
-        self.assertEqual(calls[2]["ob"], [
+        self.assertEqual(calls[0]["ob"], ["sync-list-local"])
+        self.assertEqual(calls[1], {"user": "hermes"})
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(calls[2]["ob"], ["sync-list-local"])
+        self.assertEqual(calls[3]["ob"], [
             "sync", "--continuous", "--path", self.env["OBSIDIAN_VAULT_PATH"],
         ])
-        self.assertEqual(calls[2]["home"], "/data")
-        self.assertIsNone(calls[2]["config"])
+        self.assertEqual(calls[3]["home"], "/data")
+        self.assertIsNone(calls[3]["config"])
 
     def test_explicit_home_and_xdg_config_home_are_preserved(self):
         self.env.update(
@@ -139,9 +140,9 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         )
         self.assertEqual(self.run_script().returncode, 0)
         calls = self.calls()
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(calls[2]["home"], "/data/custom-home")
-        self.assertEqual(calls[2]["config"], "/data/custom-config")
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(calls[3]["home"], "/data/custom-home")
+        self.assertEqual(calls[3]["config"], "/data/custom-config")
 
     def test_already_unprivileged_service_does_not_drop_again(self):
         self.env.update(OBSIDIAN_VAULT_PATH="/data/vault", TEST_UID="10000")
