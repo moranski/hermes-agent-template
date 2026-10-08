@@ -52,6 +52,11 @@ uses `/data/.config/obsidian-headless`. If `XDG_CONFIG_HOME` is set, Obsidian us
 `$XDG_CONFIG_HOME/obsidian-headless` instead. Keep that directory writable by
 `hermes` and on persistent storage.
 
+For existing Obsidian state under `/data`, startup repairs ownership of the
+Obsidian directory and its config parent to `hermes`, preserving file modes.
+This supports credentials and vault links created by older root-run containers.
+It does not recursively change ownership of other applications' config files.
+
 Existing login and vault links in that location are reused. For a new setup,
 log in and link the vault once inside the running container as `hermes`:
 

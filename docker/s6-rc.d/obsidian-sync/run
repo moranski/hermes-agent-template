@@ -27,12 +27,26 @@ esac
 # existing state itself (by default /data/.config/obsidian-headless).
 # Exec after dropping privileges so s6 signals reach ob directly.
 if [ "$(id -u)" = 0 ]; then
-    config_home="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian-headless"
-    echo "[obsidian-sync] Root-readable config directory metadata:"
-    ls -ld -- "$config_home" "$config_home/sync" \
-        /opt/data/.config/obsidian-headless /root/.config/obsidian-headless || true
-    echo "[obsidian-sync] Root-readable local vault links:"
-    ob sync-list-local || echo "[obsidian-sync] Root could not list local vault links" >&2
+    config_base=$(realpath -m -- "${XDG_CONFIG_HOME:-$HOME/.config}")
+    config_home=$(realpath -m -- "$config_base/obsidian-headless")
+    # Older deployments logged in as root, creating private 0700 directories
+    # and 0600 state files. Transfer only existing Obsidian state to hermes;
+    # preserve file modes and never cross mounts or follow nested symlinks.
+    case "$config_base" in
+        /data|/data/*)
+            case "$config_home" in
+                /data/*)
+                    if [ -d "$config_home" ]; then
+                        chown hermes:hermes "$config_base"
+                        find -P "$config_home" -xdev ! -type l \
+                            \( ! -user hermes -o ! -group hermes \) \
+                            -exec chown hermes:hermes {} +
+                        echo "[obsidian-sync] Existing config ownership repaired: $config_home"
+                    fi
+                    ;;
+            esac
+            ;;
+    esac
     set -- s6-setuidgid hermes
 else
     set --

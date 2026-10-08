@@ -50,6 +50,10 @@ with open(os.environ['TEST_LOG'], 'a') as f:
 """,
         )
         self.command(
+            "chown",
+            "raise SystemExit('Ownership repair must only run in the Docker fixture')\n",
+        )
+        self.command(
             "id",
             "import os; print(os.environ.get('TEST_UID', '0'))\n",
         )
@@ -122,15 +126,14 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
-        self.assertEqual(calls[0]["ob"], ["sync-list-local"])
-        self.assertEqual(calls[1], {"user": "hermes"})
-        self.assertEqual(len(calls), 4)
-        self.assertEqual(calls[2]["ob"], ["sync-list-local"])
-        self.assertEqual(calls[3]["ob"], [
+        self.assertEqual(calls[0], {"user": "hermes"})
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[1]["ob"], ["sync-list-local"])
+        self.assertEqual(calls[2]["ob"], [
             "sync", "--continuous", "--path", self.env["OBSIDIAN_VAULT_PATH"],
         ])
-        self.assertEqual(calls[3]["home"], "/data")
-        self.assertIsNone(calls[3]["config"])
+        self.assertEqual(calls[2]["home"], "/data")
+        self.assertIsNone(calls[2]["config"])
 
     def test_explicit_home_and_xdg_config_home_are_preserved(self):
         self.env.update(
@@ -140,9 +143,9 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         )
         self.assertEqual(self.run_script().returncode, 0)
         calls = self.calls()
-        self.assertEqual(len(calls), 4)
-        self.assertEqual(calls[3]["home"], "/data/custom-home")
-        self.assertEqual(calls[3]["config"], "/data/custom-config")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[2]["home"], "/data/custom-home")
+        self.assertEqual(calls[2]["config"], "/data/custom-config")
 
     def test_already_unprivileged_service_does_not_drop_again(self):
         self.env.update(OBSIDIAN_VAULT_PATH="/data/vault", TEST_UID="10000")
@@ -207,6 +210,73 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         self.assertNotIn("\nENTRYPOINT", dockerfile)
         self.assertFalse((SERVICE.parent / "dashboard").exists())
         self.assertFalse((SERVICE.parent / "main-hermes").exists())
+
+
+@unittest.skipUnless(os.environ.get("OBSIDIAN_TEST_IMAGE"), "requires a built Docker image")
+class ObsidianOwnershipIntegrationTests(unittest.TestCase):
+    def test_root_created_state_is_reused_without_changing_modes_or_other_files(self):
+        # The real CLI lists an existing vault after the service repairs its
+        # root-owned private state. A tiny fake handles only continuous sync so
+        # this test never connects to a remote vault or needs credentials.
+        script = r'''
+set -eu
+mkdir -p /test-bin
+cat > /test-bin/ob <<'SH'
+#!/bin/sh
+if [ "$1" = sync-list-local ]; then
+    exec node /opt/aio-npm/node_modules/obsidian-headless/cli.js "$@"
+fi
+exit 0
+SH
+chmod 0755 /test-bin/ob
+export PATH=/test-bin:/command:$PATH
+export OBSIDIAN_VAULT_PATH='/data/work/My Vault'
+python3 - <<'PY'
+import json, os
+from pathlib import Path
+base = Path(os.environ.get('XDG_CONFIG_HOME') or (Path(os.environ['HOME']) / '.config'))
+vault = base / 'obsidian-headless/sync/test-vault'
+vault.mkdir(parents=True, mode=0o700)
+for path in (base, base / 'obsidian-headless', vault.parent, vault):
+    path.chmod(0o700)
+config = vault / 'config.json'
+config.write_text(json.dumps({'vaultPath': os.environ['OBSIDIAN_VAULT_PATH'], 'host': 'sync.example.test'}))
+config.chmod(0o600)
+other = base / 'other-app'
+other.mkdir()
+(other / 'state').write_text('untouched')
+outside = Path('/data/untouched-state')
+outside.write_text('untouched')
+(vault / 'outside-link').symlink_to(outside)
+PY
+sh /etc/s6-overlay/s6-rc.d/obsidian-sync/run
+python3 - <<'PY'
+import json, os, pwd, subprocess
+from pathlib import Path
+base = Path(os.environ.get('XDG_CONFIG_HOME') or (Path(os.environ['HOME']) / '.config'))
+vault = base / 'obsidian-headless/sync/test-vault'
+uid = pwd.getpwnam('hermes').pw_uid
+for path in (base, base / 'obsidian-headless', vault.parent, vault):
+    assert path.stat().st_uid == uid, path
+    assert path.stat().st_mode & 0o777 == 0o700, path
+assert (vault / 'config.json').stat().st_uid == uid
+assert (vault / 'config.json').stat().st_mode & 0o777 == 0o600
+assert (base / 'other-app/state').stat().st_uid == 0
+assert Path('/data/untouched-state').stat().st_uid == 0
+assert (vault / 'outside-link').is_symlink()
+result = subprocess.check_output(['/command/s6-setuidgid', 'hermes', 'node',
+    '/opt/aio-npm/node_modules/obsidian-headless/cli.js', 'sync-list-local', '--json'], text=True)
+assert json.loads(result)['vaults'][0]['path'] == os.environ['OBSIDIAN_VAULT_PATH']
+PY
+'''
+        for config_home in (None, "/data/custom-config"):
+            with self.subTest(config_home=config_home):
+                args = ["docker", "run", "--rm", "--entrypoint", "sh"]
+                if config_home:
+                    args += ["-e", f"XDG_CONFIG_HOME={config_home}"]
+                args += [os.environ["OBSIDIAN_TEST_IMAGE"], "-c", script]
+                result = subprocess.run(args, capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
