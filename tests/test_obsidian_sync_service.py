@@ -25,15 +25,15 @@ class ObsidianSyncServiceTests(unittest.TestCase):
         self.ready = self.directory / "ready"
         self.env = os.environ.copy()
         self.env.pop("OBSIDIAN_VAULT_PATH", None)
+        self.env.pop("XDG_CONFIG_HOME", None)
         self.env.update(
             PATH=f"{self.bin}:{os.environ['PATH']}",
-            HOME="/root",
-            XDG_CONFIG_HOME="/root/.config",
+            HOME="/data",
             TEST_LOG=str(self.log),
             TEST_READY=str(self.ready),
         )
-        # Stand-ins record calls and simulate exits/signals. mkdir is replaced
-        # solely to avoid writing /data on the host; no script text is changed.
+        # Guard shared config directories: the service must not create or chmod
+        # them. Stand-ins record accidental mutations without writing /data.
         self.command(
             "mkdir",
             """import json, os, sys
@@ -74,7 +74,7 @@ with open(os.environ['TEST_LOG'], 'a') as f:
 from pathlib import Path
 with open(os.environ['TEST_LOG'], 'a') as f:
     f.write(json.dumps({'ob': sys.argv[1:], 'home': os.environ['HOME'],
-                       'config': os.environ['XDG_CONFIG_HOME'], 'pid': os.getpid()}) + '\\n')
+                       'config': os.environ.get('XDG_CONFIG_HOME'), 'pid': os.getpid()}) + '\\n')
 if os.environ.get('TEST_WAIT') == '1':
     def stop(signum, frame):
         print('fake ob received SIGTERM', flush=True)
@@ -121,15 +121,24 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
         self.assertEqual(calls[0], {"user": "hermes"})
-        self.assertEqual(calls[1], {
-            "mkdir": ["-p", "/data/.hermes/obsidian-config"], "umask": 0o077,
-        })
-        self.assertEqual(calls[2], {"chmod": ["0700", "/data/.hermes/obsidian-config"]})
-        self.assertEqual(calls[3]["ob"], [
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1]["ob"], [
             "sync", "--continuous", "--path", self.env["OBSIDIAN_VAULT_PATH"],
         ])
-        self.assertEqual(calls[3]["home"], "/data")
-        self.assertEqual(calls[3]["config"], "/data/.hermes/obsidian-config")
+        self.assertEqual(calls[1]["home"], "/data")
+        self.assertIsNone(calls[1]["config"])
+
+    def test_explicit_home_and_xdg_config_home_are_preserved(self):
+        self.env.update(
+            OBSIDIAN_VAULT_PATH="/data/vault",
+            HOME="/data/custom-home",
+            XDG_CONFIG_HOME="/data/custom-config",
+        )
+        self.assertEqual(self.run_script().returncode, 0)
+        calls = self.calls()
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1]["home"], "/data/custom-home")
+        self.assertEqual(calls[1]["config"], "/data/custom-config")
 
     def test_already_unprivileged_service_does_not_drop_again(self):
         self.env.update(OBSIDIAN_VAULT_PATH="/data/vault", TEST_UID="10000")
@@ -145,11 +154,6 @@ sys.exit(int(os.environ.get('TEST_OB_EXIT', '0')))
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("[obsidian-sync]", result.stderr)
                 self.assertEqual(self.calls(), [])
-
-    def test_credential_directory_failure_does_not_start_sync(self):
-        self.env.update(OBSIDIAN_VAULT_PATH="/data/vault", TEST_MKDIR_EXIT="1")
-        self.assertNotEqual(self.run_script().returncode, 0)
-        self.assertFalse(any("ob" in call for call in self.calls()))
 
     def test_sync_exit_is_propagated_and_finish_allows_delayed_restart(self):
         # s6 executes finish after both clean exits and failures; its non-125

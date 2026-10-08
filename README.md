@@ -46,16 +46,19 @@ Hermes. Set `OBSIDIAN_VAULT_PATH` to an absolute vault directory under `/data`,
 for example `/data/.hermes/workspace/vault`. With this variable unset or empty,
 the service stays disabled. One container syncs one configured vault.
 
-Log in and link the vault once inside the running container. Run these commands
-as shown so setup and the service use the same user and persistent credentials:
+The service uses the container's `HOME` and `XDG_CONFIG_HOME` without overriding
+them. The image defaults to `HOME=/data` with `XDG_CONFIG_HOME` unset, so Obsidian
+uses `/data/.config/obsidian-headless`. If `XDG_CONFIG_HOME` is set, Obsidian uses
+`$XDG_CONFIG_HOME/obsidian-headless` instead. Keep that directory writable by
+`hermes` and on persistent storage.
+
+Existing login and vault links in that location are reused. For a new setup,
+log in and link the vault once inside the running container as `hermes`:
 
 ```sh
-/command/s6-setuidgid hermes env HOME=/data \
-  XDG_CONFIG_HOME=/data/.hermes/obsidian-config ob login
+/command/s6-setuidgid hermes ob login
 
-/command/s6-setuidgid hermes env HOME=/data \
-  XDG_CONFIG_HOME=/data/.hermes/obsidian-config \
-  ob sync-setup --vault "My Vault" \
+/command/s6-setuidgid hermes ob sync-setup --vault "My Vault" \
   --path /data/.hermes/workspace/vault
 ```
 
@@ -65,9 +68,8 @@ active Obsidian Sync subscription is required. See the official
 
 After setup, set `OBSIDIAN_VAULT_PATH` and restart the container. At boot, the
 inherited entrypoint starts `ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"`
-as `hermes`. Credentials and local sync configuration live under
-`/data/.hermes/obsidian-config`; the vault also stays on the persistent volume.
-The service preserves the sync settings chosen during setup.
+as `hermes`. The vault stays on the persistent volume, and the service preserves
+the sync settings chosen during setup.
 
 Sync output goes to container logs. s6 restarts the process after exits with a
 three-second delay and signals it during container shutdown. Missing setup or

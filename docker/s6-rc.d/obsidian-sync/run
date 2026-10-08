@@ -23,23 +23,13 @@ case "$resolved_path" in
         ;;
 esac
 
-# Explicitly restore HOME after with-contenv and isolate Obsidian's persistent
-# credentials from upstream wrappers that set HOME=/opt/data.
-export HOME=/data
-export XDG_CONFIG_HOME=/data/.hermes/obsidian-config
-
-# Drop privileges before creating credentials or touching the vault. Both
-# shells exec their child so s6 signals reach ob directly; no background loop.
+# Preserve the container's HOME and XDG_CONFIG_HOME. Obsidian resolves its
+# existing state itself (by default /data/.config/obsidian-headless).
+# Exec after dropping privileges so s6 signals reach ob directly.
 if [ "$(id -u)" = 0 ]; then
     set -- s6-setuidgid hermes
 else
     set --
 fi
 echo "[obsidian-sync] Starting continuous sync: $OBSIDIAN_VAULT_PATH"
-exec "$@" sh -c '
-    set -eu
-    umask 077
-    mkdir -p "$XDG_CONFIG_HOME"
-    chmod 0700 "$XDG_CONFIG_HOME"
-    exec ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"
-'
+exec "$@" ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"
