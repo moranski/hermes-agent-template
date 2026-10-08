@@ -16,4 +16,4 @@ fi
 
 # The upstream hook migrates only HERMES_HOME. This helper also covers each
 # live named profile under the same Railway volume, with rollback on failure.
-s6-setuidgid hermes python /app/migrate_hermes_configs.py
+HERMES_SKIP_CONFIG_MIGRATION=0 s6-setuidgid hermes python /app/migrate_hermes_configs.py

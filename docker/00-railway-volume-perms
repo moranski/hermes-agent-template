@@ -1,0 +1,16 @@
+#!/command/with-contenv sh
+set -eu
+
+# The previous Railway image wrote this application data as root. Repair
+# descendants even when an earlier boot already changed the home directory.
+# Do not follow symlinks or cross nested filesystem mounts.
+hermes_home="${HERMES_HOME:-/data/.hermes}"
+if [ -L "$hermes_home" ]; then
+  echo "[volume-perms] Refusing symlinked HERMES_HOME" >&2
+  exit 1
+fi
+mkdir -p "$hermes_home"
+find -P "$hermes_home" -xdev ! -type l \
+  \( ! -user hermes -o ! -group hermes \) \
+  -exec chown hermes:hermes {} +
+echo "[volume-perms] Hermes application data ownership repaired"

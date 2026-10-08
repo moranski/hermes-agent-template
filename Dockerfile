@@ -26,8 +26,9 @@ RUN apt-get update && \
 # unmigrated config. Delivery preflight is read-only and may stop an unsafe
 # upgrade when a profile ledger cannot be checked.
 COPY migrate_hermes_configs.py check_pending_deliveries.py /app/
+COPY docker/00-railway-volume-perms /etc/cont-init.d/00-railway-volume-perms
 COPY docker/011-aio-preflight /etc/cont-init.d/011-aio-preflight
-RUN chmod 0755 /etc/cont-init.d/011-aio-preflight
+RUN chmod 0755 /etc/cont-init.d/00-railway-volume-perms /etc/cont-init.d/011-aio-preflight
 
 # Add-on Python packages share the Hermes interpreter and are locked for its
 # Python 3.13 runtime. Sync from uv.lock directly so artifact URLs and hashes
