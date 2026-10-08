@@ -17,10 +17,12 @@ class ImageContractTests(unittest.TestCase):
             "HERMES_SKIP_CONFIG_MIGRATION=1",
             "HERMES_DASHBOARD_PORT=8080",
             "PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright",
+            "NPM_CONFIG_PREFIX=/data/.hermes/npm-global",
         ):
             self.assertIn(setting, dockerfile)
         self.assertNotIn("\nENTRYPOINT", dockerfile)
         self.assertIn('CMD ["sleep", "infinity"]', dockerfile)
+        self.assertIn("ENV PATH=/data/.hermes/npm-global/bin:/opt/aio-npm/node_modules/.bin:", dockerfile)
         railway = (ROOT / ".railway/railway.ts").read_text()
         self.assertIn('healthcheck: "/api/status"', railway)
         self.assertNotIn("start:", railway)

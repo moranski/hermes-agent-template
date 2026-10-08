@@ -42,7 +42,11 @@ RUN VIRTUAL_ENV=/opt/hermes/.venv uv sync --project /app/aio-python \
 COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
 RUN npm ci --prefix /opt/aio-npm --omit=dev --no-audit --no-fund && \
     chown -R hermes:hermes /opt/aio-npm
-ENV PATH=/opt/aio-npm/node_modules/.bin:/opt/hermes/bin:/opt/hermes/.venv/bin:${PATH}
+# Runtime global installs (including sync scripts updating ob) must use the
+# persistent writable home, rather than root-owned /usr/local. Prefer these
+# updates over the versions bundled in the image.
+ENV NPM_CONFIG_PREFIX=/data/.hermes/npm-global
+ENV PATH=/data/.hermes/npm-global/bin:/opt/aio-npm/node_modules/.bin:/opt/hermes/bin:/opt/hermes/.venv/bin:${PATH}
 
 # Chromium stays outside /data so Railway volume mounts cannot hide the browser binaries.
 RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \

@@ -9,7 +9,7 @@ if [ -L "$hermes_home" ]; then
   echo "[volume-perms] Refusing symlinked HERMES_HOME" >&2
   exit 1
 fi
-mkdir -p "$hermes_home"
+mkdir -p "$hermes_home" "$hermes_home/npm-global"
 find -P "$hermes_home" -xdev ! -type l \
   \( ! -user hermes -o ! -group hermes \) \
   -exec chown hermes:hermes {} +

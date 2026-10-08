@@ -19,6 +19,7 @@ The container uses the official Hermes image entrypoint and its native web dashb
 - Hermes profile and configuration: `/data/.hermes`
 - Workspaces: `/data/.hermes/workspace` (and any configured workspace paths under `/data`)
 - Lazy installed Hermes packages: `/data/.hermes/lazy-packages`
+- Runtime global npm updates: `/data/.hermes/npm-global` (its binaries take precedence over bundled tools, so `npm install -g obsidian-headless@latest` updates `ob` without root permissions)
 
 The image sets `HOME=/data`, `HERMES_HOME=/data/.hermes`, and `HERMES_WRITE_SAFE_ROOT=/data`. It serves the native Hermes dashboard on port **8080** and provides `/api/status` for Railway health checks. Set a unique `HERMES_DASHBOARD_BASIC_AUTH_SECRET` along with the username and password so login sessions survive restarts.
 
