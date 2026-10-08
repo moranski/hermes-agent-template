@@ -1,4 +1,4 @@
-ARG HERMES_IMAGE=ghcr.io/nousresearch/hermes-agent:v2026.9.24
+ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v2026.9.24
 FROM ${HERMES_IMAGE}
 
 USER root
@@ -30,14 +30,12 @@ COPY docker/011-aio-preflight /etc/cont-init.d/011-aio-preflight
 RUN chmod 0755 /etc/cont-init.d/011-aio-preflight
 
 # Add-on Python packages share the Hermes interpreter and are locked for its
-# Python 3.13 runtime.
+# Python 3.13 runtime. Sync from uv.lock directly so artifact URLs and hashes
+# from the lock are used instead of re-resolving versions through the index.
 COPY aio-python/pyproject.toml aio-python/uv.lock /app/aio-python/
-RUN uv export --project /app/aio-python --locked --no-dev --no-emit-project \
-        --format requirements.txt --output-file /tmp/aio-requirements.txt && \
-    uv pip install --python /opt/hermes/.venv/bin/python --no-cache \
-        -r /tmp/aio-requirements.txt && \
-    chown -R hermes:hermes /opt/hermes/.venv && \
-    rm /tmp/aio-requirements.txt
+RUN VIRTUAL_ENV=/opt/hermes/.venv uv sync --project /app/aio-python \
+        --active --locked --no-install-project --no-dev --inexact && \
+    chown -R hermes:hermes /opt/hermes/.venv
 
 # Codex CLI, Obsidian Headless Sync, and agent-browser.
 COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
