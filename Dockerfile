@@ -48,6 +48,12 @@ RUN npm ci --prefix /opt/aio-npm --omit=dev --no-audit --no-fund && \
 ENV NPM_CONFIG_PREFIX=/data/.hermes/npm-global
 ENV PATH=/data/.hermes/npm-global/bin:/opt/aio-npm/node_modules/.bin:/opt/hermes/bin:/opt/hermes/.venv/bin:${PATH}
 
+# Start optional Obsidian sync through the inherited s6 entrypoint. The user
+# bundle and base dependency follow the pinned upstream service layout.
+COPY docker/s6-rc.d/ /etc/s6-overlay/s6-rc.d/
+RUN chmod 0755 /etc/s6-overlay/s6-rc.d/obsidian-sync/run \
+    /etc/s6-overlay/s6-rc.d/obsidian-sync/finish
+
 # Chromium stays outside /data so Railway volume mounts cannot hide the browser binaries.
 RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
     npx --prefix /opt/aio-npm playwright install chromium --only-shell && \

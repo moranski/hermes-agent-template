@@ -1,0 +1,45 @@
+#!/command/with-contenv sh
+set -eu
+
+if [ -z "${OBSIDIAN_VAULT_PATH:-}" ]; then
+    echo "[obsidian-sync] Disabled: OBSIDIAN_VAULT_PATH is unset"
+    exit 0
+fi
+
+# Require persistent storage, including after resolving .. and symlinks.
+case "$OBSIDIAN_VAULT_PATH" in
+    /data/*) ;;
+    *)
+        echo "[obsidian-sync] OBSIDIAN_VAULT_PATH must be an absolute path under /data" >&2
+        exit 1
+        ;;
+esac
+resolved_path=$(realpath -m -- "$OBSIDIAN_VAULT_PATH")
+case "$resolved_path" in
+    /data/*) ;;
+    *)
+        echo "[obsidian-sync] OBSIDIAN_VAULT_PATH resolves outside /data" >&2
+        exit 1
+        ;;
+esac
+
+# Explicitly restore HOME after with-contenv and isolate Obsidian's persistent
+# credentials from upstream wrappers that set HOME=/opt/data.
+export HOME=/data
+export XDG_CONFIG_HOME=/data/.hermes/obsidian-config
+
+# Drop privileges before creating credentials or touching the vault. Both
+# shells exec their child so s6 signals reach ob directly; no background loop.
+if [ "$(id -u)" = 0 ]; then
+    set -- s6-setuidgid hermes
+else
+    set --
+fi
+echo "[obsidian-sync] Starting continuous sync: $OBSIDIAN_VAULT_PATH"
+exec "$@" sh -c '
+    set -eu
+    umask 077
+    mkdir -p "$XDG_CONFIG_HOME"
+    chmod 0700 "$XDG_CONFIG_HOME"
+    exec ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"
+'

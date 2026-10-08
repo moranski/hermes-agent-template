@@ -39,6 +39,45 @@ This image retains the existing `/data` mount and `/data/.hermes` profile locati
 
 Before an upgrade, take a consistent backup of the Railway volume. If the delivery check reports pending records, review the startup message before asking affected senders to retry; a retry starts a new agent turn. An unreadable profile ledger stops startup so the state can be reviewed safely.
 
+## Continuous Obsidian sync
+
+The bundled `ob` CLI can run continuously as an s6-supervised service alongside
+Hermes. Set `OBSIDIAN_VAULT_PATH` to an absolute vault directory under `/data`,
+for example `/data/.hermes/workspace/vault`. With this variable unset or empty,
+the service stays disabled. One container syncs one configured vault.
+
+Log in and link the vault once inside the running container. Run these commands
+as shown so setup and the service use the same user and persistent credentials:
+
+```sh
+/command/s6-setuidgid hermes env HOME=/data \
+  XDG_CONFIG_HOME=/data/.hermes/obsidian-config ob login
+
+/command/s6-setuidgid hermes env HOME=/data \
+  XDG_CONFIG_HOME=/data/.hermes/obsidian-config \
+  ob sync-setup --vault "My Vault" \
+  --path /data/.hermes/workspace/vault
+```
+
+Use an interactive terminal for login and any encryption-password prompt. An
+active Obsidian Sync subscription is required. See the official
+[Headless Sync documentation](https://obsidian.md/help/sync/headless).
+
+After setup, set `OBSIDIAN_VAULT_PATH` and restart the container. At boot, the
+inherited entrypoint starts `ob sync --continuous --path "$OBSIDIAN_VAULT_PATH"`
+as `hermes`. Credentials and local sync configuration live under
+`/data/.hermes/obsidian-config`; the vault also stays on the persistent volume.
+The service preserves the sync settings chosen during setup.
+
+Sync output goes to container logs. s6 restarts the process after exits with a
+three-second delay and signals it during container shutdown. Missing setup or
+authentication failures are logged and retried without stopping Hermes. The
+Hermes `/api/status` health check does not report Obsidian sync health. Remove
+`OBSIDIAN_VAULT_PATH` and restart to disable sync.
+
+This service requires the normal PID-1 entrypoint path; the upstream fallback
+for containers launched under another init does not start s6 services.
+
 ## Managing bundled utilities
 
 Python extras are declared and locked in [`aio-python/pyproject.toml`](aio-python/pyproject.toml) and [`aio-python/uv.lock`](aio-python/uv.lock). Node utilities are declared and locked in [`aio-npm/package.json`](aio-npm/package.json) and [`aio-npm/package-lock.json`](aio-npm/package-lock.json). The Docker build installs these locks into the Hermes runtime. Chromium is installed with Playwright.

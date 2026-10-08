@@ -1,0 +1,12 @@
+#!/command/with-contenv sh
+
+if [ -z "${OBSIDIAN_VAULT_PATH:-}" ]; then
+    # s6 permanent-down marker: disabled services must not restart.
+    exit 125
+fi
+
+echo "[obsidian-sync] Sync exited (status ${1:-unknown}, signal ${2:-0}); retrying in 3 seconds" >&2
+# Stay below s6-supervise's default five-second finish timeout. Let s6 own
+# restarts and shutdown; an Obsidian failure must not halt the container.
+sleep 3
+exit 0
