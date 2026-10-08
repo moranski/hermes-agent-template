@@ -248,6 +248,17 @@ other.mkdir()
 outside = Path('/data/untouched-state')
 outside.write_text('untouched')
 (vault / 'outside-link').symlink_to(outside)
+notes = Path(os.environ['OBSIDIAN_VAULT_PATH'])
+notes.mkdir(parents=True)
+notes.parent.chmod(0o700)
+notes.chmod(0o700)
+(notes / 'existing.md').write_text('root-created note')
+(notes / 'existing.md').chmod(0o600)
+(notes / 'outside-link').symlink_to(outside)
+lock = notes / '.obsidian/.sync.lock'
+lock.mkdir(parents=True)
+lock.chmod(0o700)
+os.utime(lock, (1000000000, 1000000000))
 PY
 sh /etc/s6-overlay/s6-rc.d/obsidian-sync/run
 python3 - <<'PY'
@@ -264,6 +275,20 @@ assert (vault / 'config.json').stat().st_mode & 0o777 == 0o600
 assert (base / 'other-app/state').stat().st_uid == 0
 assert Path('/data/untouched-state').stat().st_uid == 0
 assert (vault / 'outside-link').is_symlink()
+notes = Path(os.environ['OBSIDIAN_VAULT_PATH'])
+assert notes.parent.stat().st_uid == uid
+assert notes.stat().st_uid == uid
+assert notes.stat().st_mode & 0o777 == 0o700
+assert (notes / 'existing.md').stat().st_uid == uid
+assert (notes / 'existing.md').stat().st_mode & 0o777 == 0o600
+lock = notes / '.obsidian/.sync.lock'
+assert lock.stat().st_uid == uid
+assert lock.stat().st_mtime == 1000000000
+assert (notes / 'outside-link').is_symlink()
+subprocess.check_call(['/command/s6-setuidgid', 'hermes', 'python3', '-c',
+    'import os, sys; from pathlib import Path; p=Path(sys.argv[1]); '
+    '(p / "existing.md").write_text("updated by hermes"); '
+    'os.utime(p / ".obsidian/.sync.lock", None)', str(notes)])
 result = subprocess.check_output(['/command/s6-setuidgid', 'hermes', 'node',
     '/opt/aio-npm/node_modules/obsidian-headless/cli.js', 'sync-list-local', '--json'], text=True)
 assert json.loads(result)['vaults'][0]['path'] == os.environ['OBSIDIAN_VAULT_PATH']

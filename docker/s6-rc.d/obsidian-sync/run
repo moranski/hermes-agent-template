@@ -47,6 +47,16 @@ if [ "$(id -u)" = 0 ]; then
             esac
             ;;
     esac
+    # The legacy root-run image also created vault files and lock directories
+    # as root. Sync needs to write notes and refresh its own lock timestamp.
+    # Changing ownership does not remove or alter a live lock's timestamp.
+    if [ -d "$resolved_path" ]; then
+        chown hermes:hermes "$(dirname -- "$resolved_path")"
+        find -P "$resolved_path" -xdev ! -type l \
+            \( ! -user hermes -o ! -group hermes \) \
+            -exec chown hermes:hermes {} +
+        echo "[obsidian-sync] Existing vault ownership repaired: $resolved_path"
+    fi
     set -- s6-setuidgid hermes
 else
     set --

@@ -56,6 +56,9 @@ For existing Obsidian state under `/data`, startup repairs ownership of the
 Obsidian directory and its config parent to `hermes`, preserving file modes.
 This supports credentials and vault links created by older root-run containers.
 It does not recursively change ownership of other applications' config files.
+Startup also repairs ownership of the selected vault and its parent directory
+so sync can update existing root-created notes and lock state. Existing locks
+are preserved; Obsidian checks whether another sync process holds them.
 
 Existing login and vault links in that location are reused. For a new setup,
 log in and link the vault once inside the running container as `hermes`:
