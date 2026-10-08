@@ -49,4 +49,6 @@ RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
     npx --prefix /opt/aio-npm playwright install chromium --only-shell && \
     chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
-# Keep upstream's /init dispatcher and CMD intact.
+# Keep upstream's dispatcher and supervised dashboard/gateway. Its default
+# interactive CLI exits on Railway's closed stdin and stops all services.
+CMD ["sleep", "infinity"]

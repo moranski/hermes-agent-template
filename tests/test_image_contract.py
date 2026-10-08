@@ -20,7 +20,7 @@ class ImageContractTests(unittest.TestCase):
         ):
             self.assertIn(setting, dockerfile)
         self.assertNotIn("\nENTRYPOINT", dockerfile)
-        self.assertNotIn("\nCMD ", dockerfile)
+        self.assertIn('CMD ["sleep", "infinity"]', dockerfile)
         railway = (ROOT / ".railway/railway.ts").read_text()
         self.assertIn('healthcheck: "/api/status"', railway)
         self.assertNotIn("start:", railway)
