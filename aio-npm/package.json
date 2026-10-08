@@ -5,6 +5,7 @@
   "dependencies": {
     "obsidian-headless": "*",
     "@openai/codex": "*",
-    "agent-browser": "*"
+    "agent-browser": "*",
+    "playwright": "*"
   }
 }

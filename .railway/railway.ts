@@ -1,18 +1,15 @@
 import { defineRailway, project, service } from "railway/iac";
 
-// Last resort for a per-service CaC repo. Prefer one .railway file for the
-// project and drop this if you later combine services into that file.
-export const partial = "hermes-agent-template";
+export const partial = "hermes-agent-all-in-one";
 
 export default defineRailway(() => {
-  const hermes_agent_template = service("hermes-agent-template", {
-    start: "/usr/bin/tini -g -- /app/start.sh",
-    healthcheck: "/health",
+  const hermes_agent_all_in_one = service("hermes-agent-all-in-one", {
+    healthcheck: "/api/status",
     healthcheckTimeout: 300,
     // dockerfilePath from CaC: "Dockerfile"
     // builder from CaC: "dockerfile"
   });
-  return project("hermes-agent", {
-    resources: [hermes_agent_template],
+  return project("hermes-agent-all-in-one", {
+    resources: [hermes_agent_all_in_one],
   });
 });

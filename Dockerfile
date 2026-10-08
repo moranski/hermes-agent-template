@@ -1,256 +1,53 @@
-# Hermes v2026.9.21 introduced a SQLite build without the upstream WAL-reset
-# corruption bug. Debian Bookworm's 3.40.1 is affected and also makes Hermes'
-# new FTS write-health probe fail with a generic "SQL logic error" on every
-# freshly-created state.db. Build the same pinned SQLite release and feature
-# set as Hermes' official image, but on Bookworm so the shared library remains
-# compatible with this template's Python 3.14 Bookworm runtime.
-FROM debian:bookworm-slim AS sqlite_build
-ARG SQLITE_AUTOCONF_VERSION=3530400
-ARG SQLITE_SHA256=0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c
-RUN apt-get -o Acquire::Retries=3 update && \
-    apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-        build-essential ca-certificates curl && \
-    rm -rf /var/lib/apt/lists/* && \
-    (curl -fsSL --retry 1 --retry-all-errors --connect-timeout 15 --max-time 60 \
-        -o /tmp/sqlite.tar.gz \
-        "https://sqlite.org/2026/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}.tar.gz" || \
-     curl -fsSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 120 \
-        -o /tmp/sqlite.tar.gz \
-        "https://sources.buildroot.net/sqlite/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}.tar.gz") && \
-    printf '%s  %s\n' "${SQLITE_SHA256}" /tmp/sqlite.tar.gz > /tmp/sqlite.sha256 && \
-    sha256sum -c /tmp/sqlite.sha256 && \
-    tar -xzf /tmp/sqlite.tar.gz -C /tmp && \
-    cd "/tmp/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}" && \
-    CFLAGS="-O2 \
-        -DSQLITE_ENABLE_FTS3 \
-        -DSQLITE_ENABLE_FTS3_PARENTHESIS \
-        -DSQLITE_ENABLE_FTS4 \
-        -DSQLITE_ENABLE_FTS5 \
-        -DSQLITE_ENABLE_RTREE \
-        -DSQLITE_ENABLE_GEOPOLY \
-        -DSQLITE_ENABLE_COLUMN_METADATA \
-        -DSQLITE_ENABLE_UNLOCK_NOTIFY \
-        -DSQLITE_ENABLE_DBSTAT_VTAB \
-        -DSQLITE_ENABLE_DBPAGE_VTAB \
-        -DSQLITE_ENABLE_MATH_FUNCTIONS \
-        -DSQLITE_ENABLE_PREUPDATE_HOOK \
-        -DSQLITE_ENABLE_SESSION \
-        -DSQLITE_SECURE_DELETE \
-        -DSQLITE_THREADSAFE=1 \
-        -DSQLITE_MAX_VARIABLE_NUMBER=250000" \
-        ./configure --prefix=/opt/sqlite-fixed --disable-static && \
-    make -j"$(nproc)" && \
-    make install
+ARG HERMES_IMAGE=ghcr.io/nousresearch/hermes-agent:v2026.9.24
+FROM ${HERMES_IMAGE}
 
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+USER root
 
-# Prefer the fixed SQLite over Bookworm's vulnerable libsqlite3.so.0. Verify
-# both the version and the trigram tokenizer during the image build so a loader
-# path or compile-option regression fails here rather than against user data.
-COPY --from=sqlite_build /opt/sqlite-fixed/lib/libsqlite3.so.3.53.4 /usr/local/lib/
-RUN ln -sf libsqlite3.so.3.53.4 /usr/local/lib/libsqlite3.so.0 && \
-    ln -sf libsqlite3.so.3.53.4 /usr/local/lib/libsqlite3.so && \
-    printf '/usr/local/lib\n' > /etc/ld.so.conf.d/000-sqlite-fixed.conf && \
-    ldconfig && \
-    python3 -c "import sqlite3, sys; \
-v = sqlite3.sqlite_version_info; \
-sys.exit(f'linked SQLite {sqlite3.sqlite_version} still has the WAL-reset bug') if v < (3, 51, 3) else None; \
-db = sqlite3.connect(':memory:'); \
-db.execute(\"CREATE VIRTUAL TABLE docs USING fts5(content, tokenize='trigram')\"); \
-db.execute(\"INSERT INTO docs VALUES ('hermes')\"); \
-sys.exit('SQLite FTS5 trigram self-test failed') if db.execute(\"SELECT count(*) FROM docs WHERE docs MATCH 'erm'\").fetchone()[0] != 1 else None; \
-db.close()"
+# Keep the persistent layout used by existing Railway volumes. Hermes' native
+# Docker image supplies the s6 entrypoint, gateway supervision, and dashboard.
+ENV HOME=/data \
+    HERMES_HOME=/data/.hermes \
+    HERMES_WRITE_SAFE_ROOT=/data \
+    HERMES_LAZY_INSTALL_TARGET=/data/.hermes/lazy-packages \
+    HERMES_SKIP_CONFIG_MIGRATION=1 \
+    HERMES_DASHBOARD=1 \
+    HERMES_DASHBOARD_HOST=0.0.0.0 \
+    HERMES_DASHBOARD_PORT=8080 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 
-# Which hermes-agent revision to install. Accepts any git ref the upstream
-# repo publishes — a release tag (recommended for reproducibility) or a
-# branch name (`main`) for bleeding edge.
-#
-# To bump: check https://github.com/NousResearch/hermes-agent/releases for the
-# newest tag (format `vYYYY.M.D`, optionally with a `.PATCH` suffix, e.g.
-# `v2026.5.29.2`) and update the default below. Use `main` only if you accept
-# that every rebuild can pull arbitrary new upstream commits.
-ARG HERMES_REF=v2026.9.24
-
-# Persist the build arg into the runtime env so the admin UI can display which
-# Hermes release this image actually pins. Reading it (rather than hardcoding a
-# version in the template) keeps the badge honest when someone overrides
-# HERMES_REF as a Railway service variable to pin an older release — a Railway
-# runtime variable simply shadows this ENV, so the UI still shows the truth.
-ENV HERMES_REF=${HERMES_REF}
-
-# tini = tiny init that we run as PID 1. Without it, hermes's grandchild
-# processes (MCP stdio servers, git, bun, browser daemons spawned by tools)
-# reparent to PID 1 when their parents exit and pile up as zombies. After
-# weeks of uptime that exhausts the kernel's PID table → "fork: cannot
-# allocate memory" and the container dies. tini reaps zombies in the
-# background and forwards SIGTERM/SIGINT to our entrypoint so Railway's
-# stop signal still triggers our graceful shutdown. Standard container init
-# (same as Docker's `--init` flag and Kubernetes' pause container).
-#
-# Node.js is required only at build time to compile the Hermes React dashboard.
-# We strip the source + apt lists afterwards to keep the image lean.
-#
-# agent-browser requires Node.js 24+. Hermes' .npmrc also sets engine-strict,
-# requiring npm <11.10.0 or >=11.17.0; pin a compatible npm in the adjacent
-# toolchain version file instead of relying on NodeSource's bundled npm.
+# Utilities not included in the official Hermes image.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates git tini file ffmpeg gh ripgrep && \
-    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
+    apt-get install -y --no-install-recommends file ffmpeg ripgrep && \
     rm -rf /var/lib/apt/lists/*
-COPY npm-toolchain-version.txt /tmp/npm-toolchain-version.txt
-RUN npm install --global "npm@$(cat /tmp/npm-toolchain-version.txt)" && \
-    rm /tmp/npm-toolchain-version.txt
 
-# Install hermes-agent (provides the `hermes` CLI) and pre-build its React
-# dashboard so `hermes dashboard` has nothing to build at runtime.
-#
-# [all] in v2026.6.5 no longer pulls in [dev]; messaging platforms, TTS, and
-# other heavy backends are lazy-installed by hermes at first use. We pre-install
-# the ones this template actually uses so first-message latency is instant.
-# `vision` guards image downscaling (without Pillow an oversized image >5 MB /
-# >8000px bakes into immutable history and bricks the session on Anthropic's
-# non-retryable 400). The extra itself has been EMPTY since v2026.6.19 — Pillow
-# moved into core deps — so it resolves to a no-op; kept for back-compat.
-# When bumping HERMES_REF, re-check hermes-agent's pyproject.toml [all] and
-# the extras below against the new release's pyproject.toml.
-# v2026.9.24 moved Hindsight out of the bundled provider/extras into its
-# plugin catalog. Do not request the retired [hindsight] extra or bake its old
-# hindsight-client==0.6.1 ahead of the catalog plugin's newer dependency.
-#
-# The `-e` is LOAD-BEARING since v2026.8.3: upstream's new setup.py raises on
-# bdist_wheel/sdist unless HERMES_NIX_BUILD=1. PEP 660 editable installs route
-# through build_editable and are exempt — drop `-e` and the image won't build.
-#
-# v2026.8.3 also added [tool.uv] to pyproject.toml, which uv reads from this
-# cwd (upstream builds from a frozen lock; we re-resolve every time):
-# override-dependencies fixes discord.py's vulnerable pynacl pin, and
-# exclude-newer="14 days" can fail a build on a fresh dep — override with
-# `uv pip install --exclude-newer <date>`.
-#
-# v2026.8.13 made that escape hatch sharper, and v2026.9.11 moved the floor
-# again: nemo-relay is now >=0.8.3,<0.9 (0.8.3 published 2026-09-02), which
-# only resolves because upstream lists it in exclude-newer-package. A manual
-# `--exclude-newer <date>` re-imposes a GLOBAL cutoff, so any date before
-# 2026-09-02 leaves nemo-relay>=0.8.3 unsatisfiable and hard-fails the build.
-# Same trap for cryptography==50.0.0 and h2 4.4.1. Re-read this floor on every
-# bump — it tracks whatever nemo-relay pin the pinned tag carries.
-RUN git clone --depth 1 --branch ${HERMES_REF} https://github.com/NousResearch/hermes-agent.git /opt/hermes-agent && \
-    cd /opt/hermes-agent && \
-    uv pip install --system --no-cache -e ".[all,messaging,tts-premium,honcho,bedrock,anthropic,edge-tts,vision]" && \
-    cd /opt/hermes-agent/web && \
-    npm install --silent && \
-    npm run build && \
-    cd /opt/hermes-agent/ui-tui && \
-    npm install --silent --no-fund --no-audit --progress=false && \
-    npm run build && \
-    rm -rf /opt/hermes-agent/web /opt/hermes-agent/.git /root/.npm
+# The migration helper covers root and each live profile. Running it after
+# Hermes seeds the volume but before profile reconciliation keeps existing
+# Railway data in place and prevents either Hermes service from reading an
+# unmigrated config. Delivery preflight is read-only and may stop an unsafe
+# upgrade when a profile ledger cannot be checked.
+COPY migrate_hermes_configs.py check_pending_deliveries.py /app/
+COPY docker/011-aio-preflight /etc/cont-init.d/011-aio-preflight
+RUN chmod 0755 /etc/cont-init.d/011-aio-preflight
 
-# Why pre-build ui-tui (and why we don't delete it after):
-# - The dashboard's embedded Chat tab spawns `node ui-tui/dist/entry.js`
-#   on every WebSocket connect to /api/pty.
-# - Without HERMES_TUI_DIR, hermes's _make_tui_argv falls through to the
-#   npm install + build path (since git-editable installs don't have the
-#   bundled tui_dist/ that PyPI wheels include), adding 30-60s to the
-#   first chat-open and blocking the asyncio event loop.
-# - Pre-building at image time surfaces build failures here rather than
-#   at user request time, and makes first-chat-open instant.
-# - We keep ui-tui/ entirely (node_modules + dist + src) so HERMES_TUI_DIR
-#   can point at it (see below).
-
-# Stamp the CODE-SCOPED install method next to the running package. hermes'
-# detect_install_method() reads <install-tree>/.install_method FIRST (priority 1,
-# authoritative) — before the home-scoped $HERMES_HOME/.install_method that
-# start.sh writes (priority 2, honored only when is_container() is true). The
-# install tree for our editable install is /opt/hermes-agent (parent of
-# hermes_cli/, i.e. Path(config.py).parent.parent). Baking the stamp here makes
-# the dashboard "Update Hermes" button refuse regardless of runtime container
-# detection — exactly what upstream's own published image does (it bakes a
-# docker stamp into /opt/hermes). Belt-and-suspenders with start.sh's home stamp:
-# if a future hermes release changes or drops is_container()'s Railway marker
-# (/run/.containerenv), the home stamp would stop being honored but this one
-# still refuses. Re-verify the install-tree path if hermes stops installing
-# editable from /opt/hermes-agent.
-RUN printf 'docker\n' > /opt/hermes-agent/.install_method
-
-# firecrawl-anydoc (the PDF / legacy-Office reader behind read_file) is a CORE
-# dependency as of v2026.8.31 — pyproject.toml pins ==0.2.4 and exempts it from
-# [tool.uv] exclude-newer, so the main install above already has it.
-#
-# Do NOT re-pin it in a later layer. We used to (==0.1.6, when it was lazy-only):
-# that layer runs AFTER the editable install and uv DOWNGRADES the core version,
-# and v2026.8.31 also bumped the lazy self-heal pin (tools/lazy_deps.py
-# "tool.doc_extract") to ==0.2.4. _is_satisfied() compares versions, not
-# presence, so the first PDF read tries to heal into HERMES_LAZY_INSTALL_TARGET
-# with a --constraint file built from every installed dist — which pins
-# firecrawl-anydoc==0.1.6 — and uv hard-fails "No solution found". Result:
-# EVERY PDF/.docx/.xlsx/.pptx/.odt/.rtf/.epub read fails, on every deploy,
-# retried every 300s (ANYDOC_RETRY_SECONDS) and never succeeding.
-#
-# Same trap for any other package we might pin separately: on a version bump,
-# grep the new pyproject's core dependencies for anything this Dockerfile pins.
-
-COPY requirements.txt /app/requirements.txt
-RUN uv pip install --system --no-cache -r /app/requirements.txt
-
-RUN mkdir -p /data/.hermes
-
-COPY server.py /app/server.py
-COPY migrate_hermes_configs.py /app/migrate_hermes_configs.py
-COPY check_pending_deliveries.py /app/check_pending_deliveries.py
-COPY templates/ /app/templates/
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
-
-ENV HOME=/data
-ENV HERMES_HOME=/data/.hermes
-
-# Points hermes at our pre-built TUI bundle. hermes's _make_tui_argv checks
-# HERMES_TUI_DIR first: if dist/entry.js exists there, it skips the npm
-# install/build entirely. This is the official packager path (Nix uses it too)
-# and avoids the 30-60s npm bootstrap that git-editable installs would otherwise
-# trigger on first /chat connection.
-ENV HERMES_TUI_DIR=/opt/hermes-agent/ui-tui
-
-# ---- AIO add-ons BEGIN ----
-
+# Add-on Python packages share the Hermes interpreter and are locked for its
+# Python 3.13 runtime.
 COPY aio-python/pyproject.toml aio-python/uv.lock /app/aio-python/
 RUN uv export --project /app/aio-python --locked --no-dev --no-emit-project \
-        --format requirements.txt --output-file /app/requirements-aio.txt && \
-    uv pip install --system --no-cache-dir -r /app/requirements-aio.txt
+        --format requirements.txt --output-file /tmp/aio-requirements.txt && \
+    uv pip install --python /opt/hermes/.venv/bin/python --no-cache \
+        -r /tmp/aio-requirements.txt && \
+    chown -R hermes:hermes /opt/hermes/.venv && \
+    rm /tmp/aio-requirements.txt
 
+# Codex CLI, Obsidian Headless Sync, and agent-browser.
 COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
-RUN npm ci --prefix /opt/aio-npm --omit=dev
-ENV PATH=/opt/aio-npm/node_modules/.bin:${PATH}
+RUN npm ci --prefix /opt/aio-npm --omit=dev --no-audit --no-fund && \
+    chown -R hermes:hermes /opt/aio-npm
+ENV PATH=/opt/aio-npm/node_modules/.bin:/opt/hermes/bin:/opt/hermes/.venv/bin:${PATH}
 
-# install xurl
-RUN curl -fsSL https://raw.githubusercontent.com/xdevplatform/xurl/main/install.sh | bash -
-
-# install gh
-RUN mkdir -p -m 755 /etc/apt/keyrings \
-    && out=$(mktemp) && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg > $out \
-    && cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-    && mkdir -p -m 755 /etc/apt/sources.list.d \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt update \
-    && apt-get install -y --no-install-recommends gh \
-    && rm -rf /var/lib/apt/lists/*
-
-# Keep a single Chromium copy outside the /data volume mount; agent-browser
-# auto-detects Playwright's browser through PLAYWRIGHT_BROWSERS_PATH.
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# Chromium stays outside /data so Railway volume mounts cannot hide the browser binaries.
 RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
-    npx playwright install --with-deps chromium
+    npx --prefix /opt/aio-npm playwright install chromium --only-shell && \
+    chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
-
-# ---- AIO add-ons END ----
-
-
-
-
-# tini wraps start.sh so it runs as PID 1's child instead of as PID 1 itself.
-# `-g` propagates signals to the whole process group so `docker stop` /
-# Railway's SIGTERM cleanly terminates the entire tree, not just start.sh.
-ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
-CMD ["/app/start.sh"]
+# Keep upstream's /init dispatcher and CMD intact.

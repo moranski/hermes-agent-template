@@ -1,0 +1,19 @@
+#!/command/with-contenv sh
+set -eu
+
+hermes_home="${HERMES_HOME:-/data/.hermes}"
+
+# Delivery inspection must finish before config migration. A status of 2 is an
+# advisory and continues; unreadable or unknown ledgers stop startup.
+check_rc=0
+s6-setuidgid hermes python /app/check_pending_deliveries.py --hermes-home "$hermes_home" || check_rc=$?
+if [ "$check_rc" -eq 2 ]; then
+  echo "[delivery-preflight] WARNING: outstanding profile replies may not be replayed; continuing" >&2
+elif [ "$check_rc" -ne 0 ]; then
+  echo "[delivery-preflight] ERROR: unable to verify profile delivery ledgers; stopping before migration" >&2
+  exit "$check_rc"
+fi
+
+# The upstream hook migrates only HERMES_HOME. This helper also covers each
+# live named profile under the same Railway volume, with rollback on failure.
+s6-setuidgid hermes python /app/migrate_hermes_configs.py

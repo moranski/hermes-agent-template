@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 
 
-UPSTREAM_MIGRATOR = Path("/opt/hermes-agent/scripts/docker_config_migrate.py")
+UPSTREAM_MIGRATOR = Path("/opt/hermes/scripts/docker_config_migrate.py")
 SUPPORT_FLOOR_VERSION = 12  # upstream hermes_cli.config_migrations
 SOUL_REWRITE_VERSION = 41  # upstream _migrate_to_41 touches the entire profile roster
 # Matches hermes_constants.PROFILE_ID_RE in v2026.9.24. Keep in step on bumps.
