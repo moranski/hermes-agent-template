@@ -31,12 +31,16 @@ COPY docker/011-aio-preflight /etc/cont-init.d/011-aio-preflight
 RUN chmod 0755 /etc/cont-init.d/00-railway-volume-perms /etc/cont-init.d/011-aio-preflight
 
 # Add-on Python packages share the Hermes interpreter and are locked for its
-# Python 3.13 runtime. Sync from uv.lock directly so artifact URLs and hashes
+# Python 3.14 runtime. Sync from uv.lock directly so artifact URLs and hashes
 # from the lock are used instead of re-resolving versions through the index.
+# Select its interpreter explicitly so an incompatible base image fails instead
+# of replacing Hermes' environment and dropping its bundled dependencies.
 COPY aio-python/pyproject.toml aio-python/uv.lock /app/aio-python/
 RUN PATH=/opt/hermes/tools/uv-0.12.3-linux-x64:$PATH \
     VIRTUAL_ENV=/opt/hermes/.venv uv sync --project /app/aio-python \
+        --python /opt/hermes/.venv/bin/python --no-python-downloads \
         --active --locked --no-install-project --no-dev --inexact && \
+    /opt/hermes/.venv/bin/python -c "import fastapi, uvicorn, googleapiclient, convertdate, yaml" && \
     chown -R hermes:hermes /opt/hermes/.venv
 
 # Codex CLI, Obsidian Headless Sync, agent-browser, and xurl.

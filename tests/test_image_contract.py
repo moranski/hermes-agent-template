@@ -30,12 +30,12 @@ class ImageContractTests(unittest.TestCase):
         self.assertIn("playwright", npm)
         self.assertIn("apt-get install -y --no-install-recommends file ffmpeg ripgrep", dockerfile)
         self.assertNotIn(" gh ", dockerfile)
-        self.assertNotIn("xurl", dockerfile)
+        self.assertIn('"@xdevplatform/xurl"', npm)
 
     def test_preflight_hook_runs_delivery_check_before_profile_migration(self):
         hook = (ROOT / "docker/011-aio-preflight").read_text()
         self.assertLess(hook.index("check_pending_deliveries.py"), hook.index("migrate_hermes_configs.py"))
-        self.assertIn("s6-setuidgid hermes python /app/migrate_hermes_configs.py", hook)
+        self.assertIn("s6-setuidgid hermes /opt/hermes/.venv/bin/python /app/migrate_hermes_configs.py", hook)
         self.assertIn('if [ "$check_rc" -eq 2 ]; then', hook)
         self.assertIn('elif [ "$check_rc" -ne 0 ]; then', hook)
 
