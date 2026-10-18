@@ -39,7 +39,7 @@ RUN PATH=/opt/hermes/tools/uv-0.12.3-linux-x64:$PATH \
         --active --locked --no-install-project --no-dev --inexact && \
     chown -R hermes:hermes /opt/hermes/.venv
 
-# Codex CLI, Obsidian Headless Sync, and agent-browser.
+# Codex CLI, Obsidian Headless Sync, agent-browser, and xurl.
 COPY aio-npm/package.json aio-npm/package-lock.json /opt/aio-npm/
 RUN npm ci --prefix /opt/aio-npm --omit=dev --no-audit --no-fund && \
     chown -R hermes:hermes /opt/aio-npm

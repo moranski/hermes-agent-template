@@ -3,9 +3,13 @@
   "private": true,
   "description": "Additional npm tools installed in the all-in-one image",
   "dependencies": {
-    "obsidian-headless": "*",
     "@openai/codex": "*",
+    "@xdevplatform/xurl": "*",
     "agent-browser": "*",
+    "obsidian-headless": "*",
     "playwright": "*"
+  },
+  "allowScripts": {
+    "@xdevplatform/xurl": true
   }
 }
