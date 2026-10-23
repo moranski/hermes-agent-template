@@ -1,4 +1,4 @@
-ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v0.22.2
+ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v0.22.5
 FROM ${HERMES_IMAGE}
 
 USER root
