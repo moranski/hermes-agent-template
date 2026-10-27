@@ -36,7 +36,7 @@ RUN chmod 0755 /etc/cont-init.d/00-railway-volume-perms /etc/cont-init.d/011-aio
 # Select its interpreter explicitly so an incompatible base image fails instead
 # of replacing Hermes' environment and dropping its bundled dependencies.
 COPY aio-python/pyproject.toml aio-python/uv.lock /app/aio-python/
-RUN PATH=/opt/hermes/tools/uv-0.12.3-linux-x64:$PATH \
+RUN PATH=/opt/hermes/tools/uv-0.13.5-linux-x64:$PATH \
     VIRTUAL_ENV=/opt/hermes/.venv uv sync --project /app/aio-python \
         --python /opt/hermes/.venv/bin/python --no-python-downloads \
         --active --locked --no-install-project --no-dev --inexact && \
