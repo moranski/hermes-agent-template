@@ -53,6 +53,10 @@ RUN npm ci --prefix /opt/aio-npm --omit=dev --no-audit --no-fund && \
 ENV NPM_CONFIG_PREFIX=/data/.hermes/npm-global
 ENV PATH=/data/.hermes/npm-global/bin:/opt/aio-npm/node_modules/.bin:/opt/hermes/bin:/opt/hermes/.venv/bin:${PATH}
 
+# Capture the image PATH at build time and restore it for login shells.
+RUN printf 'export PATH="%s"\n' "$PATH" \
+    > /etc/profile.d/99-container-path.sh
+
 # Start optional Obsidian sync through the inherited s6 entrypoint. The user
 # bundle and base dependency follow the pinned upstream service layout.
 COPY docker/s6-rc.d/ /etc/s6-overlay/s6-rc.d/
