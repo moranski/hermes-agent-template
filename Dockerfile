@@ -1,5 +1,5 @@
-ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v0.22.5
-FROM ${HERMES_IMAGE}
+# Keep the image literal so Dependabot can discover and update its version.
+FROM nousresearch/hermes-agent:v0.22.5
 
 USER root
 

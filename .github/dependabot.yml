@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: docker
     directory: /
+    allow:
+      - dependency-name: nousresearch/hermes-agent
     schedule:
       interval: weekly
       day: monday
