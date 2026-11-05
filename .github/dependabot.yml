@@ -4,6 +4,10 @@ updates:
     directory: /
     allow:
       - dependency-name: nousresearch/hermes-agent
+    # Consider new Hermes releases immediately when the scheduled check runs.
+    cooldown:
+      exclude:
+        - nousresearch/hermes-agent
     schedule:
       interval: weekly
       day: monday
