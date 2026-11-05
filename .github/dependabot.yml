@@ -1,5 +1,13 @@
 version: 2
 updates:
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+
   - package-ecosystem: uv
     directory: /aio-python
     schedule:
@@ -24,19 +32,6 @@ updates:
       timezone: Etc/UTC
     groups:
       aio-npm:
-        applies-to: version-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Etc/UTC
-    groups:
-      github-actions:
         applies-to: version-updates
         patterns:
           - "*"

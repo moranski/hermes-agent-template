@@ -92,7 +92,7 @@ for containers launched under another init does not start s6 services.
 
 Python extras are declared and locked in [`aio-python/pyproject.toml`](aio-python/pyproject.toml) and [`aio-python/uv.lock`](aio-python/uv.lock). Node utilities are declared and locked in [`aio-npm/package.json`](aio-npm/package.json) and [`aio-npm/package-lock.json`](aio-npm/package-lock.json). The Docker build installs these locks into the Hermes runtime. Chromium is installed with Playwright.
 
-Dependabot updates the Python and npm lockfiles weekly. Review those updates and redeploy to include them.
+Dependabot checks the Docker base image and Python and npm lockfiles weekly. Review and merge its update PRs, then redeploy to include them.
 
 ## Credits
 
