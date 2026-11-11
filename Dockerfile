@@ -1,5 +1,5 @@
 # Keep the image literal so Dependabot can discover and update its version.
-FROM nousresearch/hermes-agent:v0.22.7
+FROM nousresearch/hermes-agent:v0.23.0
 
 USER root
 
